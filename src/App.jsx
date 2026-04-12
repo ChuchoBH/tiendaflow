@@ -39,6 +39,7 @@ export default function TienditaApp() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [toast, setToast] = useState(null);
   const [products, setProducts] = useState(initialProducts);
+  const [newProduct, setNewProduct] = useState({ name: "", category: "", stock: "", price: "", cost: "" });
   const [salesLog, setSalesLog] = useState([
     { id: 1, product: "Coca-Cola 600ml", productId: 1, qty: 3, total: 54, time: "10:32 am" },
     { id: 2, product: "Sabritas Original", productId: 2, qty: 2, total: 44, time: "10:45 am" },
@@ -89,6 +90,27 @@ export default function TienditaApp() {
     }
     setSalesLog(prev => prev.filter(v => v.id !== id));
     setConfirmDelete(null);
+  };
+
+  const addProduct = () => {
+    if (!newProduct.name || !newProduct.category || !newProduct.stock || !newProduct.price || !newProduct.cost) {
+      showToast("⚠️ Llena todos los campos", "#ef4444");
+      return;
+    }
+    const product = {
+      id: Date.now(),
+      name: newProduct.name,
+      category: newProduct.category,
+      stock: parseInt(newProduct.stock),
+      min: 10,
+      price: parseFloat(newProduct.price),
+      cost: parseFloat(newProduct.cost),
+      sales: 0,
+    };
+    setProducts(prev => [...prev, product]);
+    setNewProduct({ name: "", category: "", stock: "", price: "", cost: "" });
+    setShowAddProduct(false);
+    showToast(`✅ Producto agregado — ${product.name}`);
   };
 
   const lowStock = products.filter(p => p.stock <= p.min);
@@ -263,15 +285,15 @@ export default function TienditaApp() {
               <div className="card fade-in" style={{ marginBottom: 16, border: "1px solid rgba(249,115,22,0.3)" }}>
                 <div style={{ fontWeight: 700, marginBottom: 16, color: "#f97316" }}>Nuevo Producto</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-                  <input className="input" placeholder="Nombre del producto" />
-                  <input className="input" placeholder="Categoría" />
-                  <input className="input" type="number" placeholder="Stock inicial" />
-                  <input className="input" type="number" placeholder="Precio venta $" />
-                  <input className="input" type="number" placeholder="Costo $" />
+                  <input className="input" placeholder="Nombre del producto" value={newProduct.name} onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))} />
+                  <input className="input" placeholder="Categoría" value={newProduct.category} onChange={e => setNewProduct(p => ({ ...p, category: e.target.value }))} />
+                  <input className="input" type="number" placeholder="Stock inicial" value={newProduct.stock} onChange={e => setNewProduct(p => ({ ...p, stock: e.target.value }))} />
+                  <input className="input" type="number" placeholder="Precio venta $" value={newProduct.price} onChange={e => setNewProduct(p => ({ ...p, price: e.target.value }))} />
+                  <input className="input" type="number" placeholder="Costo $" value={newProduct.cost} onChange={e => setNewProduct(p => ({ ...p, cost: e.target.value }))} />
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button className="btn-primary">Guardar Producto</button>
-                  <button className="btn-ghost" onClick={() => setShowAddProduct(false)}>Cancelar</button>
+                  <button className="btn-primary" onClick={addProduct}>Guardar Producto</button>
+                  <button className="btn-ghost" onClick={() => { setShowAddProduct(false); setNewProduct({ name: "", category: "", stock: "", price: "", cost: "" }); }}>Cancelar</button>
                 </div>
               </div>
             )}
