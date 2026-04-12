@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const mockProducts = [
+const initialProducts = [
   { id: 1, name: "Coca-Cola 600ml", category: "Bebidas", stock: 48, min: 24, price: 18, cost: 11, sales: 320 },
   { id: 2, name: "Sabritas Original", category: "Botanas", stock: 6, min: 20, price: 22, cost: 13, sales: 210 },
   { id: 3, name: "Leche Lala 1L", category: "Lácteos", stock: 12, min: 15, price: 28, cost: 21, sales: 180 },
@@ -36,53 +36,72 @@ export default function TienditaApp() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [newSaleProduct, setNewSaleProduct] = useState("");
   const [newSaleQty, setNewSaleQty] = useState(1);
-  const [salesLog, setSalesLog] = useState([
-    { id: 1, product: "Coca-Cola 600ml", qty: 3, total: 54, time: "10:32 am" },
-    { id: 2, product: "Sabritas Original", qty: 2, total: 44, time: "10:45 am" },
-    { id: 3, product: "Leche Lala 1L", qty: 1, total: 28, time: "11:10 am" },
-  ]);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [products, setProducts] = useState(initialProducts);
+  const [salesLog, setSalesLog] = useState([
+    { id: 1, product: "Coca-Cola 600ml", productId: 1, qty: 3, total: 54, time: "10:32 am" },
+    { id: 2, product: "Sabritas Original", productId: 2, qty: 2, total: 44, time: "10:45 am" },
+    { id: 3, product: "Leche Lala 1L", productId: 3, qty: 1, total: 28, time: "11:10 am" },
+  ]);
 
-  const lowStock = mockProducts.filter(p => p.stock <= p.min);
-  const totalDebt = mockFiados.reduce((sum, f) => sum + f.debt, 0);
-  const todaySales = salesData[salesData.length - 1].amount;
-  const weekSales = salesData.reduce((sum, d) => sum + d.amount, 0);
-
-  const filteredProducts = mockProducts.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const deleteSale = (id) => {
-    setSalesLog(prev => prev.filter(v => v.id !== id));
-    setConfirmDelete(null);
+  const showToast = (msg, color = "#22c55e") => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 2500);
   };
 
   const registerSale = () => {
     if (!newSaleProduct) return;
-    const product = mockProducts.find(p => p.name === newSaleProduct);
+    const product = products.find(p => p.name === newSaleProduct);
     if (!product) return;
+    if (product.stock < newSaleQty) {
+      showToast(`⚠️ Stock insuficiente. Solo hay ${product.stock} pzas.`, "#ef4444");
+      return;
+    }
     const newEntry = {
       id: Date.now(),
       product: product.name,
+      productId: product.id,
       qty: newSaleQty,
       total: product.price * newSaleQty,
       time: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
     };
-    setSalesLog([newEntry, ...salesLog]);
+    setSalesLog(prev => [newEntry, ...prev]);
+    setProducts(prev => prev.map(p =>
+      p.id === product.id
+        ? { ...p, stock: p.stock - newSaleQty, sales: p.sales + newSaleQty }
+        : p
+    ));
+    showToast(`✅ Venta registrada — ${product.name} x${newSaleQty}`);
     setNewSaleProduct("");
     setNewSaleQty(1);
   };
 
+  const deleteSale = (id) => {
+    const sale = salesLog.find(v => v.id === id);
+    if (sale) {
+      setProducts(prev => prev.map(p =>
+        p.id === sale.productId
+          ? { ...p, stock: p.stock + sale.qty, sales: Math.max(0, p.sales - sale.qty) }
+          : p
+      ));
+      showToast(`↩️ Venta cancelada — stock devuelto`, "#f97316");
+    }
+    setSalesLog(prev => prev.filter(v => v.id !== id));
+    setConfirmDelete(null);
+  };
+
+  const lowStock = products.filter(p => p.stock <= p.min);
+  const totalDebt = mockFiados.reduce((sum, f) => sum + f.debt, 0);
+  const todaySales = salesData[salesData.length - 1].amount;
+  const weekSales = salesData.reduce((sum, d) => sum + d.amount, 0);
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div style={{
-      fontFamily: "'DM Sans', 'Nunito', sans-serif",
-      background: "#0f1117",
-      minHeight: "100vh",
-      color: "#f0f0f0",
-      display: "flex",
-      flexDirection: "column",
-    }}>
+    <div style={{ fontFamily: "'DM Sans', 'Nunito', sans-serif", background: "#0f1117", minHeight: "100vh", color: "#f0f0f0", display: "flex", flexDirection: "column" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -113,10 +132,16 @@ export default function TienditaApp() {
         .fade-in { animation: fadeIn 0.3s ease forwards; }
         .alert-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         select option { background: #1a1d27; }
       `}</style>
 
-      {/* Header */}
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: toast.color, color: "white", padding: "12px 24px", borderRadius: 12, fontWeight: 600, fontSize: 14, zIndex: 9999, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", animation: "toastIn 0.3s ease" }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div style={{ background: "#13151f", borderBottom: "1px solid #1e2130", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: "64px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ background: "#f97316", width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏪</div>
@@ -147,18 +172,14 @@ export default function TienditaApp() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div style={{ flex: 1, padding: "24px", maxWidth: 1200, width: "100%", margin: "0 auto" }}>
 
-        {/* DASHBOARD TAB */}
         {activeTab === "dashboard" && (
           <div className="fade-in">
             <div style={{ marginBottom: 24 }}>
               <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, color: "#f0f0f0" }}>Buenos días, Don Chucho 👋</h1>
               <p style={{ color: "#666", fontSize: 13, marginTop: 4 }}>Aquí está el resumen de tu tienda hoy</p>
             </div>
-
-            {/* KPI Cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
               {[
                 { label: "Ventas de Hoy", value: `$${todaySales.toLocaleString()}`, icon: "💵", color: "#22c55e", sub: "+12% vs ayer" },
@@ -178,37 +199,26 @@ export default function TienditaApp() {
                 </div>
               ))}
             </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-              {/* Sales Chart */}
               <div className="card">
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 20, color: "#f0f0f0" }}>Ventas de la semana</div>
                 <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, paddingBottom: 4 }}>
                   {salesData.map((d, i) => (
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{ fontSize: 10, color: "#666" }}>${(d.amount/1000).toFixed(1)}k</div>
-                      <div style={{
-                        width: "100%",
-                        background: i === salesData.length - 1 ? "#f97316" : "#252836",
-                        borderRadius: "6px 6px 0 0",
-                        height: `${(d.amount / maxSale) * 100}px`,
-                        transition: "height 0.4s ease",
-                        border: i === salesData.length - 1 ? "none" : "1px solid #30354a",
-                        minHeight: 8,
-                      }} />
+                      <div style={{ fontSize: 10, color: "#666" }}>${(d.amount / 1000).toFixed(1)}k</div>
+                      <div style={{ width: "100%", background: i === salesData.length - 1 ? "#f97316" : "#252836", borderRadius: "6px 6px 0 0", height: `${(d.amount / maxSale) * 100}px`, transition: "height 0.4s ease", border: i === salesData.length - 1 ? "none" : "1px solid #30354a", minHeight: 8 }} />
                       <div style={{ fontSize: 11, color: i === salesData.length - 1 ? "#f97316" : "#666", fontWeight: i === salesData.length - 1 ? 700 : 400 }}>{d.day}</div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Low Stock Alerts */}
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>⚠️ Stock Bajo</div>
                   <span className="badge badge-red">{lowStock.length} items</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {lowStock.length === 0 && <div style={{ color: "#555", fontSize: 13, textAlign: "center", padding: "20px 0" }}>✅ Todo el inventario está bien</div>}
                   {lowStock.map(p => (
                     <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "rgba(239,68,68,0.07)", borderRadius: 10, border: "1px solid rgba(239,68,68,0.15)" }}>
                       <div>
@@ -221,12 +231,10 @@ export default function TienditaApp() {
                 </div>
               </div>
             </div>
-
-            {/* Top Products */}
             <div className="card" style={{ marginTop: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏆 Productos más vendidos esta semana</div>
               <div style={{ display: "flex", gap: 12 }}>
-                {[...mockProducts].sort((a, b) => b.sales - a.sales).slice(0, 5).map((p, i) => (
+                {[...products].sort((a, b) => b.sales - a.sales).slice(0, 5).map((p, i) => (
                   <div key={p.id} style={{ flex: 1, background: "#252836", borderRadius: 12, padding: "14px", border: "1px solid #30354a", textAlign: "center" }}>
                     <div style={{ fontSize: 22, marginBottom: 6 }}>{["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][i]}</div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f0f0", marginBottom: 4, lineHeight: 1.3 }}>{p.name}</div>
@@ -239,20 +247,18 @@ export default function TienditaApp() {
           </div>
         )}
 
-        {/* INVENTARIO TAB */}
         {activeTab === "inventario" && (
           <div className="fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div>
                 <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800 }}>📦 Inventario</h1>
-                <p style={{ color: "#666", fontSize: 13, marginTop: 4 }}>{mockProducts.length} productos registrados</p>
+                <p style={{ color: "#666", fontSize: 13, marginTop: 4 }}>{products.length} productos registrados</p>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <input className="input" style={{ width: 220 }} placeholder="🔍 Buscar producto..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 <button className="btn-primary" onClick={() => setShowAddProduct(!showAddProduct)}>+ Agregar Producto</button>
               </div>
             </div>
-
             {showAddProduct && (
               <div className="card fade-in" style={{ marginBottom: 16, border: "1px solid rgba(249,115,22,0.3)" }}>
                 <div style={{ fontWeight: 700, marginBottom: 16, color: "#f97316" }}>Nuevo Producto</div>
@@ -269,27 +275,22 @@ export default function TienditaApp() {
                 </div>
               </div>
             )}
-
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
               <div className="table-header" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr", background: "#13151f", borderBottom: "1px solid #252836" }}>
-                <span>PRODUCTO</span>
-                <span>CATEGORÍA</span>
-                <span>STOCK</span>
-                <span>MÍNIMO</span>
-                <span>PRECIO</span>
-                <span>COSTO</span>
-                <span>MARGEN</span>
+                <span>PRODUCTO</span><span>CATEGORÍA</span><span>STOCK</span><span>MÍNIMO</span><span>PRECIO</span><span>COSTO</span><span>MARGEN</span>
               </div>
               {filteredProducts.map(p => {
                 const margin = Math.round(((p.price - p.cost) / p.price) * 100);
                 const isLow = p.stock <= p.min;
+                const isEmpty = p.stock === 0;
                 return (
-                  <div key={p.id} className="table-row" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
+                  <div key={p.id} className="table-row" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr", background: isEmpty ? "rgba(239,68,68,0.05)" : "transparent" }}>
                     <div style={{ fontWeight: 600, color: "#f0f0f0" }}>{p.name}</div>
                     <span className="badge badge-blue">{p.category}</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 700, color: isLow ? "#ef4444" : "#22c55e" }}>{p.stock}</span>
-                      {isLow && <span className="badge badge-red">Bajo</span>}
+                      <span style={{ fontWeight: 700, color: isEmpty ? "#ef4444" : isLow ? "#f97316" : "#22c55e" }}>{p.stock}</span>
+                      {isEmpty && <span className="badge badge-red">Agotado</span>}
+                      {!isEmpty && isLow && <span className="badge badge-orange">Bajo</span>}
                     </div>
                     <div style={{ color: "#666" }}>{p.min}</div>
                     <div style={{ fontWeight: 600, color: "#f0f0f0" }}>${p.price}</div>
@@ -302,12 +303,11 @@ export default function TienditaApp() {
           </div>
         )}
 
-        {/* VENTAS TAB */}
         {activeTab === "ventas" && (
           <div className="fade-in">
             <div style={{ marginBottom: 24 }}>
               <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800 }}>💰 Registrar Venta</h1>
-              <p style={{ color: "#666", fontSize: 13, marginTop: 4 }}>Registra cada venta del día fácilmente</p>
+              <p style={{ color: "#666", fontSize: 13, marginTop: 4 }}>Cada venta descuenta automáticamente el inventario</p>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div className="card" style={{ border: "1px solid rgba(249,115,22,0.2)" }}>
@@ -317,36 +317,38 @@ export default function TienditaApp() {
                     <label style={{ fontSize: 12, color: "#888", marginBottom: 6, display: "block" }}>Producto</label>
                     <select className="input" value={newSaleProduct} onChange={e => setNewSaleProduct(e.target.value)} style={{ appearance: "none" }}>
                       <option value="">-- Selecciona un producto --</option>
-                      {mockProducts.map(p => <option key={p.id} value={p.name}>{p.name} — ${p.price}</option>)}
+                      {products.filter(p => p.stock > 0).map(p => (
+                        <option key={p.id} value={p.name}>{p.name} — ${p.price} (Stock: {p.stock})</option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <label style={{ fontSize: 12, color: "#888", marginBottom: 6, display: "block" }}>Cantidad</label>
-                    <input className="input" type="number" min="1" value={newSaleQty} onChange={e => setNewSaleQty(parseInt(e.target.value) || 1)} />
+                    <input className="input" type="number" min="1" max={products.find(p => p.name === newSaleProduct)?.stock || 99} value={newSaleQty} onChange={e => setNewSaleQty(parseInt(e.target.value) || 1)} />
+                    {newSaleProduct && (
+                      <div style={{ fontSize: 11, color: "#666", marginTop: 5 }}>
+                        Stock disponible: <strong style={{ color: "#f97316" }}>{products.find(p => p.name === newSaleProduct)?.stock} pzas</strong>
+                      </div>
+                    )}
                   </div>
                   {newSaleProduct && (
                     <div style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)", borderRadius: 12, padding: 14 }}>
                       <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Total a cobrar</div>
                       <div style={{ fontSize: 32, fontWeight: 800, color: "#f97316", fontFamily: "'Syne', sans-serif" }}>
-                        ${((mockProducts.find(p => p.name === newSaleProduct)?.price || 0) * newSaleQty).toFixed(2)}
+                        ${((products.find(p => p.name === newSaleProduct)?.price || 0) * newSaleQty).toFixed(2)}
                       </div>
                     </div>
                   )}
                   <button className="btn-primary" style={{ padding: "14px", fontSize: 15, marginTop: 4 }} onClick={registerSale}>✅ Registrar Venta</button>
                 </div>
               </div>
-
               <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #252836", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>Ventas del día</div>
                   <span className="badge badge-green">${salesLog.reduce((s, v) => s + v.total, 0).toLocaleString()} MXN</span>
                 </div>
                 <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                  {salesLog.length === 0 && (
-                    <div style={{ padding: "30px 20px", textAlign: "center", color: "#555", fontSize: 13 }}>
-                      Sin ventas registradas aún
-                    </div>
-                  )}
+                  {salesLog.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", color: "#555", fontSize: 13 }}>Sin ventas registradas aún</div>}
                   {salesLog.map(v => (
                     <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: "1px solid #1e2130", transition: "background 0.2s" }}
                       onMouseEnter={e => e.currentTarget.style.background = "#1e2130"}
@@ -375,7 +377,6 @@ export default function TienditaApp() {
           </div>
         )}
 
-        {/* FIADOS TAB */}
         {activeTab === "fiados" && (
           <div className="fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -415,7 +416,6 @@ export default function TienditaApp() {
         )}
       </div>
 
-      {/* Footer */}
       <div style={{ background: "#13151f", borderTop: "1px solid #1e2130", padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 11, color: "#444" }}>TiendaFlow Pro • Plan Básico • $299/mes</div>
         <div style={{ fontSize: 11, color: "#444" }}>© 2026 TiendaFlow SaaS</div>
