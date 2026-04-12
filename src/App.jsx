@@ -41,6 +41,7 @@ export default function TienditaApp() {
     { id: 2, product: "Sabritas Original", qty: 2, total: 44, time: "10:45 am" },
     { id: 3, product: "Leche Lala 1L", qty: 1, total: 28, time: "11:10 am" },
   ]);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const lowStock = mockProducts.filter(p => p.stock <= p.min);
   const totalDebt = mockFiados.reduce((sum, f) => sum + f.debt, 0);
@@ -52,12 +53,17 @@ export default function TienditaApp() {
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const deleteSale = (id) => {
+    setSalesLog(prev => prev.filter(v => v.id !== id));
+    setConfirmDelete(null);
+  };
+
   const registerSale = () => {
     if (!newSaleProduct) return;
     const product = mockProducts.find(p => p.name === newSaleProduct);
     if (!product) return;
     const newEntry = {
-      id: salesLog.length + 1,
+      id: Date.now(),
       product: product.name,
       qty: newSaleQty,
       total: product.price * newSaleQty,
@@ -336,13 +342,31 @@ export default function TienditaApp() {
                   <span className="badge badge-green">${salesLog.reduce((s, v) => s + v.total, 0).toLocaleString()} MXN</span>
                 </div>
                 <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                  {salesLog.length === 0 && (
+                    <div style={{ padding: "30px 20px", textAlign: "center", color: "#555", fontSize: 13 }}>
+                      Sin ventas registradas aún
+                    </div>
+                  )}
                   {salesLog.map(v => (
-                    <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: "1px solid #1e2130" }}>
+                    <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: "1px solid #1e2130", transition: "background 0.2s" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1e2130"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{v.product}</div>
                         <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{v.qty} pza{v.qty > 1 ? "s" : ""} • {v.time}</div>
                       </div>
-                      <div style={{ fontWeight: 700, color: "#22c55e", fontSize: 15 }}>${v.total}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontWeight: 700, color: "#22c55e", fontSize: 15 }}>${v.total}</div>
+                        {confirmDelete === v.id ? (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button onClick={() => deleteSale(v.id)} style={{ background: "#ef4444", color: "white", border: "none", padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Sí, borrar</button>
+                            <button onClick={() => setConfirmDelete(null)} style={{ background: "#252836", color: "#aaa", border: "none", padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDelete(v.id)} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>🗑 Borrar</button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
